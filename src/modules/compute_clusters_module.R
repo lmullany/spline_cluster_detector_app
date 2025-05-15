@@ -64,13 +64,13 @@ compute_clusters_server <- function(id, results, dc, cc, trigger, parent_session
       
       observe({
         if(trigger()) {
-          req(results$records)
+          req(results$filtered_records)
           toggle_task_button_color(parent_session$ns("clusters_btn"), busy=TRUE)
           cluster_data(NULL)
           
           clusters <- tryCatch(
             find_clusters(
-              cases = results$records,
+              cases = results$filtered_records,
               distance_matrix = cc$distance_matrix,
               spline_lookup = cc$spline_lookup,
               detect_date = cc$end_date,

@@ -68,7 +68,12 @@ SPLINE_LIBRARY <- list(
   "Spline-0.05" = fread("ancillary_data/spline_05.csv")
 )
 INTERP_FUNCTIONS = get_interpolation_functions(SPLINE_LIBRARY)
+
+## theme variables
 BOOT_PRESET = "cosmo"
+THEME = bs_theme(version = 5, preset = BOOT_PRESET)
+PRIMARY_COLOR = bs_get_variables(theme = THEME, varnames="primary")
+
 # read in the zips fips intersections file
 ZFI = fread("ancillary_data/zcta_fips_intersections.csv", colClasses = "character")
 

@@ -122,18 +122,29 @@ get_data <- function(
   res = match.arg(res)
   
   if(USE_NSSP == TRUE) {
-    data <- get_api_data(source_data, profile=profile)
-    data <- prepare_raw_data(data, data_type, res,deduplicate = deduplicate, state=state, data_source=data_source)
-    
+    raw_data <- get_api_data(source_data, profile=profile)
+    raw_data <- prepare_raw_data(
+      raw_data,
+      data_type,
+      res,
+      deduplicate = deduplicate,
+      state=state,
+      data_source=data_source
+    )
+    data <- raw_data[["data"]]
+    data_details <- raw_data[["data_details"]]
   
   } else {
     data <- source_data
+    data_details <- NULL # no data details if this is local file
   }
   
   data <- post_process_data_pull(data, res=res)
   
-  
-  return(data)
+  return(list(
+    data = data, 
+    data_details = data_details
+  ))
 
 }
 
@@ -194,7 +205,9 @@ deduplicate_datadetails <- function(
 # This function can process the raw data returned from get_api_data()
 # call. Note, that the content of that call will differ depending on 
 # whether the url passed to that call was a details or table builder call
-# and how we process it should depend on the resolution
+# and how we process it should depend on the resolution. it will return 
+# a list data, and data_details, which is NULL if the original source is just
+# a tableBuilder query
 
 prepare_raw_data <- function(data, data_type, res, deduplicate=FALSE, state=NULL, data_source=NULL) {
   if(data_type == "details") {
@@ -210,37 +223,81 @@ prepare_raw_data <- function(data, data_type, res, deduplicate=FALSE, state=NULL
     
     # if deduplication, call the deduplication function
     if(deduplicate) data <- deduplicate_datadetails(data = data)
+    # make a copy of this, which is data details
+    data_details <- data.table::copy(data)
     
-    # Now we have four possibilities:
-    # 1. zip/patient - we count by patient zip code
-    # 2. zip/facility - we still count by patient zipcode, but we have
-    # to assign an in-state zip code to those that have out of state home zip
-    # codes. We assign them to the facility zip code
-
-    # 3. county/patient - we count by region
-    # 4. county/facility - we still count by patient region, but we have
-    # to assign an instate region to those that have out of state home regions.
-    # We assign these encounters to the facility region
-    
-    byvar = fifelse(res=="zip", "ZipCode", "Region")
-    
-    # Now before we count_by, we need to update the data if facility
-    if(data_source == "facility") {
-      if(res == "zip") {
-        data <- data[, .(count = .N), by=.(Date, Zipcode = fifelse(State == state, ZipCode, HospitalZip))]
-      }
-      if(res == "county") {
-        data <- data[, .(count = .N), by=.(Date, Region = fifelse(State == state, Region, HospitalRegion))]
-      }
-    } else {
-      data <- data[, .(count = .N), by=c("Date", byvar)]
-    }
-    
-    data[, Date:=as.IDate(Date, "%m/%d/%Y")]
+    # Reduce data details to counts
+    data <- reduce_data_details_to_counts(
+      data=data, res=res, state=state, data_source = data_source, filters=NULL
+    )  
+  
   } else {
     setDT(data)
     data[, timeResolution:=as.IDate(timeResolution)]
+    data_details <- NULL
   }
+  
+  data <- check_and_standarize_data_cols(data)
+  
+  return(list(
+    data = data, 
+    data_details = data_details
+  ))
+}
+
+reduce_data_details_to_counts <- function(
+    data,
+    res=c("zip", "county"),
+    state,
+    data_source=c("patient", "facility"),
+    filters=NULL
+) {
+  
+  # Now we have four possibilities:
+  # 1. zip/patient - we count by patient zip code
+  # 2. zip/facility - we still count by patient zipcode, but we have
+  # to assign an in-state zip code to those that have out of state home zip
+  # codes. We assign them to the facility zip code
+  
+  # 3. county/patient - we count by region
+  # 4. county/facility - we still count by patient region, but we have
+  # to assign an instate region to those that have out of state home regions.
+  # We assign these encounters to the facility region
+  
+  res = match.arg(res)
+  data_source=match.arg(data_source)
+  
+  if(!is.null(filters)) {
+    for (f in filters) {
+      # 1. parse the string into an R expression
+      expr <- parse(text = f)[[1]]
+      # 2. use eval(), within df
+      data <- data[eval(expr, envir=data)]
+    }
+  }
+  
+  byvar = fifelse(res=="zip", "ZipCode", "Region")
+  
+  # Now before we count_by, we need to update the data if facility
+  if(data_source == "facility") {
+    if(res == "zip") {
+      data <- data[, .(count = .N), by=.(Date, Zipcode = fifelse(State == state, ZipCode, HospitalZip))]
+    }
+    if(res == "county") {
+      data <- data[, .(count = .N), by=.(Date, Region = fifelse(State == state, Region, HospitalRegion))]
+    }
+  } else {
+    data <- data[, .(count = .N), by=c("Date", byvar)]
+  }
+  
+  data[, Date:=as.IDate(Date, "%m/%d/%Y")]
+  setnames(data, new=c("date", "location", "count"))
+  
+  data
+  
+}
+
+check_and_standarize_data_cols <- function(data) { 
   
   if(ncol(data)>4) {
     cli:cli_abort("Returned data has more than 4 columns and can't be processed")
@@ -265,7 +322,11 @@ prepare_raw_data <- function(data, data_type, res, deduplicate=FALSE, state=NULL
   setcolorder(data, c("location", "count", "date"))
   
   # Sort by date and location
-  data[order(date,location)]
+  data <- data[order(date,location)]
+  
+  # return
+  data
+  
 }
   
 

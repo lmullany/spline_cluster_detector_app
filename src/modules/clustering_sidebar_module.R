@@ -147,6 +147,9 @@ clust_sidebar_ui <- function(id) {
           min = 7,
           max = MAX_DATE_RANGE
         ),
+        uiOutput(
+          outputId = ns("dd_filter")
+        ),
         accordion(
           id = ns("main_accordion"),
           multiple = FALSE,
@@ -180,7 +183,73 @@ clust_sidebar_server <- function(id, results, dc, cc) {
       observe(cc$base_adj_meth <- input$base_adj_meth)
       observe(cc$minimum_cluster_count <- as.numeric(input$minimum_cluster_count))
       observe(cc$maximum_cluster_count <- as.numeric(input$maximum_cluster_count))
+      observe(cc$filters <- filtered_data()$text_filters)
+      
+      # Update the filtered data
+      observe(results$filtered_records <- filtered_data()$fdf)
+      
+      # if this is data details, then we need to show the filter choices
+      
+      output$dd_filter <- renderUI({
+        req(results$data_details)
+        accordion(
+          id = ns("filter_accordion"),open = FALSE,
+          accordion_panel(
+            title = "Apply Filters",
+            checkboxGroupInput(
+              ns("filter_sex"), "Sex", 
+              #choices = c("Male" = "M", "Female"="F"),
+              choices = unique(results$data_details$Sex),
+              selected = c("M", "F"), inline = TRUE
+            ), 
+            sliderInput(
+              ns("filter_age"), "Age",
+              min = 0, max=100, value=c(0,120)
+            )
+          )
+        )
+      })
+      
+      filtered_data <- reactive({
+        # we filter the data details based on the filters shown, and create
+        # a version of the results$data, that is equivalent to it in structure
+        # but different in content. This means, we need a more modularized approach
+        # to converting the raw data details into this format. so that we can
+        # call it here..
+        
+        if(dc$data_type == "table") {
+          return(list(
+            fdf = results$records,
+            text_filters = NULL
+          ))
+        }
+        
+        req(results$data_details)
+        fdf <- data.table::copy(results$data_details)
+        fdf[, Age:=as.numeric(Age)]
 
+        filters=c(
+          paste0("between(Age,", input$filter_age[1], ",", input$filter_age[2], ")"),
+          paste0("Sex %chin% c('", paste(input$filter_sex, collapse="','"), "')")
+        )
+
+        fdf = reduce_data_details_to_counts(
+          data = fdf,
+          res = dc$res,
+          state = dc$state2,
+          data_source = dc$data_source,
+          filters = filters
+        )
+        fdf <- check_and_standarize_data_cols(fdf)
+        fdf <- post_process_data_pull(fdf, res=dc$res)
+        
+        text_filters <- get_text_filters(input$filter_age, input$filter_sex)
+        
+        return(list(fdf = fdf, text_filters =text_filters))
+      
+      }) |> bindEvent(input$filter_age, input$filter_sex)
+      
+      
       # Update the default radius when res changes
       observe({
         updateRadioButtons(
@@ -207,4 +276,11 @@ clust_sidebar_server <- function(id, results, dc, cc) {
   )
 }
 
+# helper to convert filters to text:
+get_text_filters <- function(age, sex) {
+  list(
+    age_f = paste0("Age Range: ", paste0(age, collapse=",")),
+    sex_f = paste0("Sex: ", paste0(sex,collapse=","))
+  )
+}
 

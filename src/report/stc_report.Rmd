@@ -155,6 +155,16 @@ cc_summary <- data.table(
   )
 )
 
+if(data_config[["data_type"]] == "details") {
+  cc_summary <- data.table::rbindlist(list(
+    cc_summary,
+    data.table(
+      var="Filters Applied",
+      value=paste0(cluster_config[["filters"]], collapse="; ")
+    )
+  ))
+}
+
 
 cc_summary[, value:=tools::toTitleCase(value)]
 

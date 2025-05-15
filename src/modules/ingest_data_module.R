@@ -38,7 +38,14 @@ ingested_data_ui <- function(id) {
         actionButton(ns("url"), "Show URL/Source Path", class = "btn-primary btn-sm")
       ),
       class = 'bg-transparent border-0'
-    )
+    ), 
+    # card(
+    #   id = ns("data_details_card"),
+    #   min_height=300,
+    #   withSpinner(
+    #     dataTableOutput(ns("data_details"))
+    #   )
+    # )
   ))
 }
 
@@ -49,6 +56,8 @@ ingested_data_server <- function(id, profile,  results, dc, cc, ibc, parent_sess
       
       observe({
         results$records <- dt_events()$data
+        results$filtered_records <- dt_events()$data
+        results$data_details <- dt_events()$data_details
         results$records_description <- dt_events()$description
       })
       observe({
@@ -73,6 +82,8 @@ ingested_data_server <- function(id, profile,  results, dc, cc, ibc, parent_sess
         
         results$records <- NULL
         results$records_description <- NULL
+        results$filtered_records <- NULL
+        results$data_details <- NULL
         results$map <- NULL
         results$cluster_data <- NULL
         results$cluster_table_display <- NULL
@@ -153,7 +164,11 @@ ingested_data_server <- function(id, profile,  results, dc, cc, ibc, parent_sess
         )
         
         
-        return(list(data = data, description = description))
+        return(list(
+          data = data[["data"]],
+          data_details =  data[["data_details"]],
+          description = description
+        ))
         
         
       }) |> bindEvent(ibc())
@@ -195,6 +210,21 @@ ingested_data_server <- function(id, profile,  results, dc, cc, ibc, parent_sess
         filename = function() "data.csv",
         content = function(file) data.table::fwrite(dt_events()$data, file)
       )
+      
+      # Show the data details
+      output$data_details <- renderDataTable({
+        
+        req(dt_events()$data_details)
+        
+        if(nrow(dt_events()$data_details)==0) {
+          validate("No Data Returned/Inputted")
+        }
+        datatable(
+          dt_events()$data_details,
+          rownames = FALSE
+        ) 
+      },server=TRUE) 
+      
     }  
   )
 }

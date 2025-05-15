@@ -119,7 +119,8 @@ generate_url <- function(
     # Now, make sure whatever is passed has our key fields included
     base_fields <-  c(
       "Region","State","Date","ZipCode",
-      "HospitalRegion", "FacilityType", "Visit_ID", "Hospital"
+      "HospitalRegion", "FacilityType", "C_BioSense_ID", "Visit_ID", "Hospital",
+      "Age", "Sex"
     )
     
     fields <- base::union(base_fields, fields)

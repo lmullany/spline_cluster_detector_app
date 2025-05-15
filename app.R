@@ -9,13 +9,17 @@ source("src/00_setup.R")
 # ui ----------------------------------------------------------------------
 
 ui <- page(
-  theme = bs_theme(version = 5, preset = BOOT_PRESET),
-  tags$head(tags$style(HTML("
+  theme = THEME,
+  tags$head(tags$style(HTML(paste0("
         .shiny-output-error-validation {
           color: red;
         }
         .card {border: 0;}
-      "))),
+        .bslib-full-screen-enter {
+          background-color: ", PRIMARY_COLOR, "; /* A darker gray for better contrast in dark mode */
+          color: #fff; /* White text for contrast */
+        }
+      ")))),
   useShinyjs(),
   page_navbar(
     title = "Spline Based Cluster Determination",
@@ -67,7 +71,8 @@ server <- function(input, output, session) {
     radius = NULL, 
     test_length = NULL, end_date = NULL, baseline_length = NULL,
     distance_locations = NULL, distance_matrix = NULL,
-    spline_lookup = NULL, spline_value=NULL, base_adj_meth = NULL
+    spline_lookup = NULL, spline_value=NULL, base_adj_meth = NULL,
+    filters=NULL
   )
   
   # ----------------------------------------------------------------------
@@ -75,7 +80,8 @@ server <- function(input, output, session) {
   # ----------------------------------------------------------------------
   results <- reactiveValues(
     cluster_data=NULL, cluster_table_display=NULL, map=NULL, heatmap=NULL, 
-    time_series_plot=NULL, summary_stats=NULL, records=NULL, records_description=NULL
+    time_series_plot=NULL, summary_stats=NULL, records=NULL, records_description=NULL,
+    data_details=NULL, filtered_records=NULL
   )
   
   # ---------------------------------------------------------
