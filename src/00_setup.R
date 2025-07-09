@@ -27,15 +27,18 @@ if (length(setdiff("Rnssp", rownames(installed.packages()))) > 0) {
 }
 lapply("Rnssp", library, character.only = TRUE)
 
+install.packages("src/scd_package_assets/splineClusterDetector_0.6.5.tar.gz", repos=NULL,verbose = TRUE)
+library(splineClusterDetector)
+
 
 #######################################
 # Source the package assets
-load("src/scd_package_assets/zipcodes.rda")
-load("src/scd_package_assets/counties.rda")
-for(f in list.files("src/scd_package_assets/", pattern=".R$", full.names = T,recursive = T)) {
-  source(f)
-}
-rm(list=c("f"))  
+# load("src/scd_package_assets/zipcodes.rda")
+# load("src/scd_package_assets/counties.rda")
+# for(f in list.files("src/scd_package_assets/", pattern=".R$", full.names = T,recursive = T)) {
+#   source(f)
+# }
+# rm(list=c("f"))  
 #######################################
 
 MAX_DATE_RANGE = 730
