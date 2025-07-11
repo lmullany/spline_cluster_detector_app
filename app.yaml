@@ -11,7 +11,7 @@ description: >
   identify clusters is similar to the approach used in SaTScan™ 
   (https://www.satscan.org/), but the statistical significance of the clusters is
   determined using a set of classifiers that have learned the tri-variate relationship
-  between observed, log of the observed to expected ratio, and signficance of the
+  between observed, log of the observed to expected ratio, and significance of the
   space-time permutation statistic. As estimation of the latter can be computationally
   expensive, leveraging a trained classifier can provide an approximation of the statistic
   in a fraction of time that would be necessary to run the full permutation-based
