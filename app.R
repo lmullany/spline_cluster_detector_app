@@ -19,32 +19,32 @@ source("src/00_setup.R")
 
 ui <- page(
   theme = THEME,
-  tags$head(tags$style(HTML(paste0("
-        .shiny-output-error-validation {
-          color: red;
-        }
-        .card {border: 0;}
-        .bslib-full-screen-enter {
-          background-color: ", PRIMARY_COLOR, "; /* A darker gray for better contrast in dark mode */
-          color: #fff; /* White text for contrast */
-        }
-      ")))),
+  tags$head(
+    tags$link(rel="stylesheet", href="app.css"),
+    tags$script(src="strip_titles.js"),
+    tags$style(HTML(sprintf("
+    .bslib-full-screen-enter { background-color: %s; color: #fff; }
+  ", PRIMARY_COLOR)))
+  ),
   useShinyjs(),
   page_navbar(
     title = "Spline Based Cluster Determination",
-    data_loader_ui("data_loader"),
-    clustering_ui("clustering"),
+    nav_panel("1. Data Loader", value = "data_loader", data_loader_ui("data_loader")),
+    nav_panel("2. Clustering", value = "clustering", clustering_ui("clustering")),
     nav_panel(
       "Documentation",
-      tags$iframe(src = "documentation.html",
-        style  = "width: 100%; height: 800px; border: none;",
-        seamless = "seamless"
-      )
+      includeMarkdown('src/documentation/documentation.Rmd')
+    ),
+    nav_panel(
+      "UPDATES",
+      includeMarkdown('src/documentation/change_log.Rmd')
     ),
     nav_spacer(),
     nav_item(report_ui("report")),
     nav_item(input_dark_mode()),
-    navbar_options = list(class = "bg-primary", theme = "dark", underline = FALSE)
+    navbar_options = list(class = "bg-primary", theme = "dark", underline = FALSE),
+    selected = "data_loader",
+    id="main_navbar"
   )
 )
 
@@ -62,6 +62,7 @@ server <- function(input, output, session) {
   # ----------------------------------------------------------------------
   # Global Reactives for Data Configuration
   # ----------------------------------------------------------------------
+  
   data_config <- reactiveValues(
     # basic data characteristics
     res = NULL, state = NULL, state2 = NULL,
@@ -73,7 +74,10 @@ server <- function(input, output, session) {
     # url and source info
     url_params = NULL, source_data = NULL, USE_NSSP = FALSE, data_type = NULL,
     data_source = NULL, custom_url = NULL, custom_url_valid = TRUE,
-    ad_hoc = FALSE, dedup = FALSE
+    ad_hoc = FALSE, dedup = FALSE,
+    
+    step_to_cluster = 0
+    
   )
   
   # ----------------------------------------------------------------------
@@ -83,7 +87,7 @@ server <- function(input, output, session) {
   cluster_config <- reactiveValues(
     radius = NULL,
     test_length = NULL, end_date = NULL, baseline_length = NULL,
-    distance_locations = NULL, distance_matrix = NULL,
+    list_of_locations = NULL,
     spline_lookup = NULL, spline_value = NULL, base_adj_meth = NULL,
     filters = NULL
   )
@@ -101,11 +105,33 @@ server <- function(input, output, session) {
   # ---------------------------------------------------------
   #   Module Calls: Data Loader, Clustering, and Report
   # ---------------------------------------------------------
+  
+  session$onFlushed(function() {
+    runjs("$('a[data-value=\"clustering\"]').addClass('disabled-tab');")
+  }, once = TRUE)
+
+  # Turn the clustering tab on when records is not null; else off
+  observe({
+    if(!is.null(results$records)) {
+      runjs("$('a[data-value=\"clustering\"]').removeClass('disabled-tab');")
+    } else {
+      runjs("$('a[data-value=\"clustering\"]').addClass('disabled-tab');")
+      updateTabsetPanel(inputId = "main_navbar", selected="data_loader")
+    }
+  }) |> bindEvent(results$records)
+
+
   data_loader_server("data_loader", results, data_config, cluster_config, profile, valid_profile)
   clustering_server("clustering", results, data_config, cluster_config, profile)
   report_server("report", results, data_config, cluster_config)
   
-
+  # Observe the step to cluster value; when increment from zero; step to cluster
+  observe({
+    if(data_config$step_to_cluster>0) {
+      updateTabsetPanel(inputId = "main_navbar", selected="clustering")
+    }
+  })
+  
 }
 
 #-----------

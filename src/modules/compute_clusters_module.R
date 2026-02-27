@@ -2,6 +2,13 @@
 # Development of this software was sponsored by the U.S. Government under
 # contract no. 75D30124C19958
 
+ 
+get_distance_list <- function(st, res, threshold) {
+  if (st == "US") return(create_dist_list(threshold = threshold))
+  create_dist_list(level = res, st = st, threshold=threshold)
+}
+
+
 get_cluster_table_sketch <- function(res = c("zip", "county")) {
   res <- match.arg(res)
 
@@ -15,7 +22,7 @@ get_cluster_table_sketch <- function(res = c("zip", "county")) {
     thead(
       tr(
         th("Center", title = "The center of the cluster"),
-        th("Cluster Date", title = "The date of this cluster"),
+        th("Cluster Start Date", title = "The start date of this cluster"),
         th("Duration", title = "Duration (days)"),
         th("Observed", title = "Number observed in the cluster"),
         th("Expected", title = "Number expected in the cluster"),
@@ -61,22 +68,6 @@ compute_clusters_server <- function(id, results, dc, cc, trigger, parent_session
       observe(results$cluster_data <- cluster_data())
       observe(results$cluster_table_display <- cluster_table_display()$display)
       observe(results$cluster_data_extended <- cluster_table_display()$cd)
-      # observe({
-      #   req(cluster_table_display())
-      #   if(is.list(cluster_table_display())) {
-      #     results$cluster_table_display <- cluster_table_display()$display
-      #   } else {
-      #     results$cluster_table_display <- cluster_table_display()
-      #   }
-      # })
-      #
-      # observe({
-      #   req(cluster_table_display())
-      #   if(is.list(cluster_table_display())) {
-      #     results$cluster_data_extended <- cluster_table_display()$cd
-      #   }
-      #
-      # })
 
       ns <- session$ns
 
@@ -85,17 +76,17 @@ compute_clusters_server <- function(id, results, dc, cc, trigger, parent_session
       # ---------------------------------------------
 
       cluster_data <- reactiveVal()
-
+      
       observe({
         if (trigger()) {
           req(results$filtered_records_count)
           toggle_task_button_color(parent_session$ns("clusters_btn"), busy = TRUE)
           cluster_data(NULL)
-
+          
           clusters <- tryCatch(
             find_clusters(
               cases = results$filtered_records_count,
-              distance_matrix = cc$distance_matrix,
+              distance_matrix = get_distance_list(st = dc$state2, res = dc$res, threshold=cc$radius),
               detect_date = cc$end_date,
               spline_lookup = cc$spline_lookup,
               baseline_length = as.numeric(cc$baseline_length),
@@ -107,8 +98,12 @@ compute_clusters_server <- function(id, results, dc, cc, trigger, parent_session
               baseline_adjustment = cc$base_adj_meth,
               use_fast = TRUE
             ),
-            error = function(e) "No Clusters Found"
+            error = function(e) paste0("Error in cluster computation:\n", e)
           )
+          if(is.null(clusters)) {
+            # find_clusters ran without error, but no clusters found
+            clusters <- "<p style='color:red'>No Clusters found for given input data and cluster configuration.</p>"
+          }
 
           trigger(FALSE)
           cluster_data(clusters)
@@ -132,7 +127,7 @@ compute_clusters_server <- function(id, results, dc, cc, trigger, parent_session
             ,
             .(
               `Cluster Date` = date,
-              Duration = detect_date - date + 1,
+              Duration = as.integer(as.Date(max_date) - date + 1),
               Observed = observed,
               Expected = expected,
               `Obs/Exp` = exp(log_obs_exp),
@@ -176,7 +171,9 @@ compute_clusters_server <- function(id, results, dc, cc, trigger, parent_session
           }
 
           dom_value <- fifelse(nrow(cd) < 10, "t", "tp")
-
+          
+          # Add a sort order
+          setorderv(cd, c("Cluster Date", "Observed", "p-value"),order = c(1,-1,1))
 
           cd[, names(.SD) := lapply(.SD, \(s) round(s, 2)), .SDcols = is.numeric]
           cd[, intersected_locs := paste0(
@@ -198,7 +195,10 @@ compute_clusters_server <- function(id, results, dc, cc, trigger, parent_session
                 targets = "Cluster Locations",
                 render = JS("$.fn.dataTable.render.ellipsis(25, false )")
               ))
-
+            ),
+            caption = tags$caption(
+              style = "caption-side: bottom; text-align: left;",
+              "Note: ", em("Clusters are sorted by date, then total observed cases, then p-value.")
             )
           )
 
