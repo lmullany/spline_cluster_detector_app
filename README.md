@@ -1,5 +1,4 @@
-### ARCHIVED AND NOT BEING UPDATED
-For the current version of this app, see: https://github.com/CDCgov/Rnssp-shiny-apps
+For the most up-to-date version of this app, see: https://github.com/CDCgov/Rnssp-shiny-apps
 
 # Spline-Based Cluster Detection Shiny App
 
